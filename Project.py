@@ -80,11 +80,11 @@ def fetch_and_store_transcripts(video_ids, category):
 # Read video data from CSV file
 video_data_df = pd.read_csv('video_data.csv')
 
-# # Fetch and store preprocessed transcripts for the specified videos
-# for index, row in video_data_df.iterrows():
-#     video_id = row['video_id']
-#     category = row['category']
-#     fetch_and_store_transcripts([video_id], category)
+# Fetch and store preprocessed transcripts for the specified videos
+for index, row in video_data_df.iterrows():
+    video_id = row['video_id']
+    category = row['category']
+    fetch_and_store_transcripts([video_id], category)
 
 # Load data from the SQLite database
 conn = sqlite3.connect('youtube_transcripts.db')
@@ -140,43 +140,43 @@ model.save('transcript_classification_model.keras')
 from sklearn.model_selection import GridSearchCV
 from scikeras.wrappers import KerasClassifier
 
-# Define a function to create the RNN model with custom hyperparameters
-def create_rnn_model(learning_rate=0.001, dropout_rate=0.2, num_lstm_units=128):
-    model = Sequential()
-    model.add(Bidirectional(LSTM(num_lstm_units)))
-    model.add(Dropout(dropout_rate))
-    model.add(Dense(3, activation='softmax'))
-    optimizer = Adam(learning_rate=learning_rate)
-    model.compile(optimizer=optimizer,
-                  loss='sparse_categorical_crossentropy',
-                  metrics=['accuracy'])
-    return model
+# # Define a function to create the RNN model with custom hyperparameters
+# def create_rnn_model(learning_rate=0.001, dropout_rate=0.2, num_lstm_units=128):
+#     model = Sequential()
+#     model.add(Bidirectional(LSTM(num_lstm_units)))
+#     model.add(Dropout(dropout_rate))
+#     model.add(Dense(3, activation='softmax'))
+#     optimizer = Adam(learning_rate=learning_rate)
+#     model.compile(optimizer=optimizer,
+#                   loss='sparse_categorical_crossentropy',
+#                   metrics=['accuracy'])
+#     return model
 
-# Define a function to create the KerasClassifier with custom hyperparameters
-def create_keras_classifier(learning_rate=0.001, dropout_rate=0.2, num_lstm_units=128):
-    return KerasClassifier(build_fn=create_rnn_model, epochs=10, batch_size=32, verbose=0,
-                           learning_rate=learning_rate, dropout_rate=dropout_rate,
-                           num_lstm_units=num_lstm_units)
+# # Define a function to create the KerasClassifier with custom hyperparameters
+# def create_keras_classifier(learning_rate=0.001, dropout_rate=0.2, num_lstm_units=128):
+#     return KerasClassifier(build_fn=create_rnn_model, epochs=10, batch_size=32, verbose=0,
+#                            learning_rate=learning_rate, dropout_rate=dropout_rate,
+#                            num_lstm_units=num_lstm_units)
 
-# Wrap the Keras model so it can be used with GridSearchCV
-rnn_model = create_keras_classifier()
+# # Wrap the Keras model so it can be used with GridSearchCV
+# rnn_model = create_keras_classifier()
 
-# Define the hyperparameter grid
-param_grid = {
-    'learning_rate': [0.001, 0.01, 0.1],
-    'dropout_rate': [0.2, 0.3, 0.4],
-    'num_lstm_units': [64, 128, 256],
-}
+# # Define the hyperparameter grid
+# param_grid = {
+#     'learning_rate': [0.001, 0.01, 0.1],
+#     'dropout_rate': [0.2, 0.3, 0.4],
+#     'num_lstm_units': [64, 128, 256],
+# }
 
-# Perform grid search
-grid_search = GridSearchCV(estimator=rnn_model, param_grid=param_grid, cv=3)
-grid_result = grid_search.fit(X_train_padded, np.array(y_train))
+# # Perform grid search
+# grid_search = GridSearchCV(estimator=rnn_model, param_grid=param_grid, cv=3)
+# grid_result = grid_search.fit(X_train_padded, np.array(y_train))
 
-# Print the best hyperparameters
-print("Best Hyperparameters: ", grid_result.best_params_)
+# # Print the best hyperparameters
+# print("Best Hyperparameters: ", grid_result.best_params_)
 
-# Evaluate the best model on the test set
-best_model = grid_result.best_estimator_
-test_loss, test_accuracy = best_model.score(X_test_padded, np.array(y_test))
-print(f'Test Loss: {test_loss}, Test Accuracy: {test_accuracy}')
+# # Evaluate the best model on the test set
+# best_model = grid_result.best_estimator_
+# test_loss, test_accuracy = best_model.score(X_test_padded, np.array(y_test))
+# print(f'Test Loss: {test_loss}, Test Accuracy: {test_accuracy}')
 
