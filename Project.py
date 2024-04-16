@@ -1,37 +1,74 @@
-from youtube_transcript_api import YouTubeTranscriptApi
-# retrieve the available transcripts
-# transcript_list = YouTubeTranscriptApi.list_transcripts('iwh8XbZk-zQ','bIDKhZ_4jLQ&ab_channel=DudePerfect')
-                                                        # ,'ll8bMh1I7oU','tJPX_RkjYtc','qUUloBe5vEo','dwV04XuiWq4','g9G44Az00l0','JErXWwcVA6Q','viQC-6xoJ3E','3TJP5a3pBME','_XFzT9GMmw8','aUDgaN6iHFc','uWFv1vuPtwo','l2s_mknWn-w','aJq9bmwv0CI','mkbtYFxDnWo','KK21LIfAF6I','p-84FvmpeEw','nj87csGC6c8','iPMaoRmCUoQ&ab_channel=KieranBrown')
-
-# for transcript in transcript_list:
-#     # fetch the actual transcript data
-#     print(transcript.fetch())
-
 import sqlite3
+import numpy as np
+import re
+import matplotlib.pyplot as plt
 from youtube_transcript_api import YouTubeTranscriptApi
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from sklearn.model_selection import train_test_split
+from gensim.models import Word2Vec
+from keras.models import Sequential, load_model
+from keras.layers import LSTM, Dense, Bidirectional, Dropout
+from keras.preprocessing.sequence import pad_sequences
+from keras.optimizers import Adam
+import pandas as pd
+# Download NLTK resources (only download once)
+import nltk
+# nltk.download('punkt')
+# nltk.download('stopwords')
+# nltk.download('wordnet')
 
-# Define a function to fetch and store transcripts
+# Initialize WordNet lemmatizer
+lemmatizer = WordNetLemmatizer()
+
+def preprocess_text(transcript):
+    """
+    Preprocesses the transcript text.
+    """
+    # Initialize a list to store preprocessed tokens
+    preprocessed_tokens = []
+
+    # Retrieve the English stop words
+    stop_words = set(stopwords.words('english'))
+
+    # Iterate through each segment of the transcript
+    for segment in transcript:
+        # Convert segment text to lowercase
+        segment_text = segment['text'].lower()
+        # Remove non-alphanumeric characters and tokenize text
+        tokens = word_tokenize(re.sub(r'[^a-zA-Z0-9\s]', '', segment_text))
+        # Remove stop words and lemmatize tokens
+        tokens = [lemmatizer.lemmatize(token) for token in tokens if token not in stop_words]
+        # Add preprocessed tokens to the list
+        preprocessed_tokens.extend(tokens)
+
+    # Join tokens back into a single string
+    preprocessed_text = ' '.join(preprocessed_tokens)
+    return preprocessed_text
+
 def fetch_and_store_transcripts(video_ids, category):
+    """
+    Fetches and stores transcripts for the specified videos in the SQLite database.
+    """
     # Connect to SQLite database
     conn = sqlite3.connect('youtube_transcripts.db')
     c = conn.cursor()
     
     # Create a table to store transcripts if it doesn't exist
     c.execute('''CREATE TABLE IF NOT EXISTS transcripts
-                 (video_id TEXT, title TEXT, transcript TEXT, category TEXT)''')
+                 (video_id TEXT, transcript TEXT, category INTEGER)''')
 
     for video_id in video_ids:
         try:
             # Retrieve transcript for the video
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            transcript = transcript_list.find_transcript(['en'])
+            transcript = YouTubeTranscriptApi.get_transcript(video_id)
 
-            # Fetch video title
-            video_info = YouTubeTranscriptApi.get_transcript(video_id)
-            title = video_info.title
+            # Preprocess transcript text
+            preprocessed_transcript = preprocess_text(transcript)
 
             # Store transcript in the database
-            c.execute("INSERT INTO transcripts VALUES (?, ?, ?, ?)", (video_id, title, transcript, category))
+            c.execute("INSERT INTO transcripts VALUES (?, ?, ?)", (video_id, preprocessed_transcript, category))
             conn.commit()
 
             print(f"Transcript for video {video_id} stored successfully.")
@@ -41,49 +78,82 @@ def fetch_and_store_transcripts(video_ids, category):
     # Close database connection
     conn.close()
 
-# Define the video IDs and their corresponding categories
-video_data = [
-    {'video_id': 'iwh8XbZk-zQ', 'category': 'sports'},
-    {'video_id': 'bIDKhZ_4jLQ&ab_channel=DudePerfect', 'category': 'sports'},
-    {'video_id': 'll8bMh1I7oU', 'category': 'sports'},
-    # {'video_id': 'tJPX_RkjYtc', 'category': 'sports'},
-    # {'video_id': 'qUUloBe5vEo', 'category': 'sports'},
-    # {'video_id': 'dwV04XuiWq4', 'category': 'sports'},
-    # {'video_id': 'g9G44Az00l0', 'category': 'sports'},
-    # {'video_id': 'JErXWwcVA6Q', 'category': 'sports'},
-    # {'video_id': 'viQC-6xoJ3E', 'category': 'sports'},
-    # {'video_id': '3TJP5a3pBME', 'category': 'sports'},
-    # {'video_id': '_XFzT9GMmw8', 'category': 'sports'},
-    # {'video_id': 'aUDgaN6iHFc', 'category': 'sports'},
-    # {'video_id': 'uWFv1vuPtwo', 'category': 'sports'},
-    # {'video_id': 'l2s_mknWn-w', 'category': 'sports'},
-    # {'video_id': 'aJq9bmwv0CI', 'category': 'sports'},
-    # {'video_id': 'mkbtYFxDnWo', 'category': 'sports'},
-    # {'video_id': 'KK21LIfAF6I', 'category': 'sports'},
-    # {'video_id': 'p-84FvmpeEw', 'category': 'sports'},
-    # {'video_id': 'nj87csGC6c8', 'category': 'sports'},
-    # {'video_id': 'iPMaoRmCUoQ&ab_channel=KieranBrown', 'category': 'sports'},
-  
-    # Add more videos and categories as needed
-]
+# Read video data from CSV file
+video_data_df = pd.read_csv('video_data.csv')
 
-# Fetch and store transcripts for the specified videos
-for video_info in video_data:
-    video_id = video_info['video_id']
-    category = video_info['category']
-    fetch_and_store_transcripts([video_id], category)
+# ////// CODE TO DOWNLOAD TRANSCRIPTS//////
+# # Fetch and store preprocessed transcripts for the specified videos
+# for index, row in video_data_df.iterrows():
+#     video_id = row['video_id']
+#     category = row['category']
+#     fetch_and_store_transcripts([video_id], category)
 
-# Connect to the database
+# Load data from the SQLite database
 conn = sqlite3.connect('youtube_transcripts.db')
 c = conn.cursor()
-
-# Execute a query to fetch all rows from the transcripts table
-c.execute("SELECT * FROM transcripts")
-rows = c.fetchall()
-
-# Display the fetched rows
-for row in rows:
-    print(row)
-
-# Close the database connection
+c.execute("SELECT transcript, category FROM transcripts")
+data = c.fetchall()
 conn.close()
+
+# Split data into transcripts and corresponding categories
+transcripts, categories = zip(*data)
+
+# Train Word2Vec model to convert text data into numerical representations
+tokenized_transcripts = [transcript.split() for transcript in transcripts]
+word2vec_model = Word2Vec(tokenized_transcripts, vector_size=100, window=5, min_count=1, workers=4)
+
+# Convert text data to numerical representations using Word2Vec embeddings
+X = []
+for transcript in tokenized_transcripts:
+    embedding = np.zeros((len(transcript), 100))
+    for i, word in enumerate(transcript):
+        if word in word2vec_model.wv:
+            embedding[i] = word2vec_model.wv[word]
+    X.append(embedding)
+
+# Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, categories, test_size=0.2, random_state=42)
+
+# Pad sequences to have the same length
+max_length = max(len(seq) for seq in X_train)
+X_train_padded = pad_sequences(X_train, maxlen=max_length, padding='post', dtype='float32')
+X_test_padded = pad_sequences(X_test, maxlen=max_length, padding='post', dtype='float32')
+
+print(X_train_padded.shape)
+print(X_test_padded.shape)
+
+
+# Define the RNN model
+model = Sequential()
+model.add(Bidirectional(LSTM(128)))
+model.add(Dropout(0.4))  # Dropout layer with dropout rate of 0.2
+model.add(Dense(3, activation='softmax'))
+
+# Compile and train the model
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+history = model.fit(X_train_padded, np.array(y_train), epochs=40, batch_size=32, validation_split=0.1)
+
+# Evaluate the model
+loss, accuracy = model.evaluate(X_test_padded, np.array(y_test))
+print(f'Test Loss: {loss}, Test Accuracy: {accuracy}')
+
+# Save the trained model
+model.save('transcript_classification_model.keras')
+
+# Load the saved model (for demonstration)
+# loaded_model = load_model('transcript_classification_model.keras')
+# Train the model and save the history
+# history = loaded_model.fit(X_train_padded, np.array(y_train), epochs=40, batch_size=32, validation_split=0.1)
+# # Evaluate the model
+# loss, accuracy = loaded_model.evaluate(X_test_padded, np.array(y_test))
+# print(f'Test Loss: {loss}, Test Accuracy: {accuracy}')
+
+# Plot accuracy vs epoch
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Accuracy vs Epoch')
+plt.legend()
+plt.show()
+
